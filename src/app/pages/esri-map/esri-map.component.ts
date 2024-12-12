@@ -66,7 +66,6 @@ export class EsriMapComponent implements OnInit, OnDestroy {
       this.mapLoadedEvent.emit(true);
     });
     this.task3();
-    this.loadPointsFromFirebase();
     this.updateUserPosition(); 
   }
 
@@ -90,25 +89,8 @@ export class EsriMapComponent implements OnInit, OnDestroy {
       };
       this.view = new MapView(mapViewProperties);
 
-      this.view.on('click', (event: any) => {
-        console.log(event);
-        const point = this.view.toMap(event);
-        this.addPointToMap(point.latitude, point.longitude);
-        this.savePointToFirebase(point.latitude, point.longitude);
-      });
-
-      this.view.on('resize', () => {
-        this.loadPointsFromFirebase(); 
-      });
-
-      this.view.on('pointer-move', ["Shift"], (event) => {
-        const point = this.view.toMap({ x: event.x, y: event.y });
-        console.log("Map pointer moved: ", point.longitude, point.latitude);
-      });
-
       await this.view.when();
       console.log("ArcGIS map loaded");
-      this.addRouting();
       return this.view;
     } catch (error) {
       console.error("Error loading the map: ", error);
@@ -172,71 +154,66 @@ export class EsriMapComponent implements OnInit, OnDestroy {
   }
 
   task3() {
-    const places = ["Choose a place type...", "Parks and Outdoors", "Coffee shop", "Gas station", "Food", "Hotel"];
-
-    const select = document.createElement("select");
-    select.setAttribute("class", "esri-widget esri-select");
-    select.setAttribute("style", "width: 175px; font-family: 'Avenir Next W00'; font-size: 1em");
-
-    places.forEach((p) => {
-      const option = document.createElement("option");
-      option.value = p;
-      option.innerHTML = p;
-      select.appendChild(option);
-    });
-
-    this.view.ui.add(select, "bottom-left");
-
-    const locatorUrl = "http://geocode-api.arcgis.com/arcgis/rest/services/World/GeocodeServer";
-
-    // Search for places in center of map
-    reactiveUtils.when(
-      () => this.view.stationary,
-      () => {
-        this.findPlaces(select.value, this.view.center);
+    const input = document.createElement("input");
+    input.setAttribute("type", "text");
+    input.setAttribute("placeholder", "Search for shop type...");
+    input.setAttribute("class", "esri-widget esri-input");
+    input.setAttribute("style", "width: 175px; font-family: 'Avenir Next W00'; font-size: 1em");
+  
+    const resultsDiv = document.createElement("div");
+    resultsDiv.setAttribute("class", "esri-widget esri-results");
+    resultsDiv.setAttribute("style", "max-height: 150px; overflow-y: auto; background: white; width: 175px; border: 1px solid #ccc;");
+  
+    this.view.ui.add(input, "bottom-left");
+    this.view.ui.add(resultsDiv, "bottom-left");
+  
+    input.addEventListener("input", (event) => {
+      const query = (event.target as HTMLInputElement).value.trim().toLowerCase();
+  
+      if (query.length > 2) {
+        this.shopsLayer.queryFeatures({
+          where: `LOWER(shop) LIKE '%${query}%'`,
+          outFields: ["shop"],
+          returnDistinctValues: true
+        }).then((result) => {
+          resultsDiv.innerHTML = ""; // Clear previous results
+  
+          if (result.features.length === 0) {
+            resultsDiv.innerHTML = "<div style='padding: 5px;'>No results found</div>";
+          } else {
+            result.features.forEach((feature) => {
+              const type = feature.attributes.shop;
+  
+              const resultItem = document.createElement("div");
+              resultItem.setAttribute("style", "padding: 5px; cursor: pointer;");
+              resultItem.textContent = type;
+  
+              resultItem.addEventListener("click", () => {
+                input.value = type;
+                resultsDiv.innerHTML = ""; // Clear results on selection
+                this.filterShopsByType(type); // Apply filter to the map
+              });
+  
+              resultsDiv.appendChild(resultItem);
+            });
+          }
+        });
+      } else {
+        resultsDiv.innerHTML = ""; // Clear results if query is too short
       }
-    );
-
-    select.addEventListener("change", (event) => {
-      this.findPlaces((event.target as HTMLSelectElement).value, this.view.center);
     });
   }
-
-  addPointToMap(lat: number, lng: number): void {
-    const point = new Point({
-      longitude: lng,
-      latitude: lat
-    });
-
-    const pointGraphic = new Graphic({
-      geometry: point,
-      symbol: new SimpleMarkerSymbol({
-        color: [255, 0, 0],  // Red color
-        size: 8,
-        outline: {
-          color: [255, 255, 255],
-          width: 2
-        }
-      })
-    });
-
-    this.view.graphics.add(pointGraphic);  // Add point to the map view
+  filterShopsByType(shopType: string): void {
+    // Apply a definition query to the FeatureLayer
+    this.shopsLayer.definitionExpression = `shop = '${shopType}'`;
+    console.log(`Filtering shops by type: ${shopType}`);
   }
-  savePointToFirebase(lat: number, lng: number): void {
-    const pointsRef = this.db.list('points');
-    pointsRef.push({ latitude: lat, longitude: lng });
+  resetShopFilter(): void {
+    // Clear the definition query to show all shops
+    this.shopsLayer.definitionExpression = null;
+    console.log("Shop filter reset");
   }
 
-  loadPointsFromFirebase(): void {
-    const pointsRef = this.db.list('points');
-    pointsRef.valueChanges().subscribe(points => {
-      //remove all points from the map
-      this.graphicsLayer.removeAll();
-      points.forEach((point: any) => {
-        this.addPointToMap(point.latitude, point.longitude);  // Add each point to the map
-      });
-    });
-  }
 
   updateUserPosition(): void {
     if (navigator.geolocation) {
@@ -257,14 +234,10 @@ export class EsriMapComponent implements OnInit, OnDestroy {
       console.log("Geolocation is not supported by this browser.");
     }
   }
-
   saveUserPositionToFirebase(lat: number, lng: number): void {
     const userPositionRef = this.db.object('user_position');
     userPositionRef.set({ latitude: lat, longitude: lng });
   }
-
-
-
 
   addGraphicsLayer() {
     this.graphicsLayer = new GraphicsLayer();
@@ -277,18 +250,23 @@ export class EsriMapComponent implements OnInit, OnDestroy {
 
   addRouting() {
     const routeUrl = "https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
+  
     this.view.on("click", (event) => {
       this.view.hitTest(event).then((elem: esri.HitTestResult) => {
         if (elem && elem.results && elem.results.length > 0) {
+          // Check if the clicked element is a shop or a point for routing
           let point: esri.Point = elem.results.find(e => e.layer === this.shopsLayer)?.mapPoint;
+  
           if (point) {
-            console.log("get selected point: ", elem, point);
             if (this.graphicsLayerUserPoints.graphics.length === 0) {
+              // Add first point for routing
               this.addPoint(point.latitude, point.longitude);
             } else if (this.graphicsLayerUserPoints.graphics.length === 1) {
+              // Add second point for routing and calculate the route
               this.addPoint(point.latitude, point.longitude);
               this.calculateRoute(routeUrl);
             } else {
+              // If two points exist, clear them
               this.removePoints();
             }
           }
@@ -296,6 +274,37 @@ export class EsriMapComponent implements OnInit, OnDestroy {
       });
     });
   }
+  addPointToMap(lat: number, lng: number, attributes?: any): void {
+    const point = new Point({
+      longitude: lng,
+      latitude: lat
+    });
+
+    const pointGraphic = new Graphic({
+      geometry: point,
+      symbol: new SimpleMarkerSymbol({
+        color: [255, 0, 0],  // Red color
+        size: 8,
+        outline: {
+          color: [255, 255, 255],
+          width: 2
+        }
+      }),
+      attributes: attributes || {},
+      popupTemplate: { 
+        title: "{shop}", 
+        content: `
+          <b>Shop Type:</b> {shop}<br>
+          <b>Location:</b> {Place_addr}<br>
+          <b>Latitude:</b> {latitude}<br>
+          <b>Longitude:</b> {longitude}
+        `
+      }
+    });
+
+    this.view.graphics.add(pointGraphic);
+  }
+
 
   addPoint(lat: number, lng: number) {
     let point = new Point({
@@ -323,7 +332,6 @@ export class EsriMapComponent implements OnInit, OnDestroy {
   removePoints() {
     this.graphicsLayerUserPoints.removeAll();
   }
-
   removeRoutes() {
     this.graphicsLayerRoutes.removeAll();
   }
@@ -360,7 +368,20 @@ export class EsriMapComponent implements OnInit, OnDestroy {
       alert("No directions found");
     }
   }
+  showDirections(features: any[]) {
+    this.directionsElement = document.createElement("ol");
+    this.directionsElement.classList.add("esri-widget", "esri-widget--panel", "esri-directions__scroller");
+    this.directionsElement.style.marginTop = "0";
+    this.directionsElement.style.marginBottom = "0";
 
+    features.forEach(feature => {
+      const li = document.createElement("li");
+      li.textContent = feature.attributes.text;
+      this.directionsElement.appendChild(li);
+    });
+
+    this.view.ui.add(this.directionsElement, "top-right");
+  }
   clearRouter() {
     if (this.view) {
       // Remove all graphics related to routes
@@ -371,22 +392,6 @@ export class EsriMapComponent implements OnInit, OnDestroy {
       this.view.ui.empty("top-right");
       console.log("Directions cleared");
     }
-  }
-
-  showDirections(features: any[]) {
-    this.directionsElement = document.createElement("ol");
-    this.directionsElement.classList.add("esri-widget", "esri-widget--panel", "esri-directions__scroller");
-    this.directionsElement.style.marginTop = "0";
-    this.directionsElement.style.padding = "15px 15px 15px 30px";
-
-    features.forEach((result, i) => {
-      const direction = document.createElement("li");
-      direction.innerHTML = `${result.attributes.text} (${result.attributes.length} miles)`;
-      this.directionsElement.appendChild(direction);
-    });
-
-    this.view.ui.empty("top-right");
-    this.view.ui.add(this.directionsElement, "top-right");
   }
   
   ngOnDestroy() {
