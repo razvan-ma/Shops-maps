@@ -65,6 +65,7 @@ export class EsriMapComponent implements OnInit, OnDestroy {
       this.loaded = this.view.ready;
       this.mapLoadedEvent.emit(true);
     });
+    
     this.task3();
     this.updateUserPosition(); 
   }
@@ -101,11 +102,26 @@ export class EsriMapComponent implements OnInit, OnDestroy {
   addFeatureLayers() {
     this.shopsLayer = new FeatureLayer({
       url: "https://services-eu1.arcgis.com/zci5bUiJ8olAal7N/arcgis/rest/services/OSM_EU_Shops/FeatureServer/0",
-      outFields: ['*']
+      outFields: ['*'],
+      popupTemplate: {
+        title : "{name}",
+        content : `
+          <b>Shop Type:</b> {shop}<br>
+          <b>Location:</b> {addr_street}<br>
+          <b>Schedule:</b> {opening_hours}<br>
+
+          <button id="routeButton"> Get Directions</button>
+          `
+      }
+      // doar aici ar merge logica de buton 
+      // TODO: Scoate le pe celelalte
     });
   
     this.map.add(this.shopsLayer);
+
+
   }
+
 
   // Find places and add them to the map
   findPlaces(category, pt) {
@@ -291,18 +307,20 @@ export class EsriMapComponent implements OnInit, OnDestroy {
         }
       }),
       attributes: attributes || {},
-      popupTemplate: { 
-        title: "{shop}", 
+      popupTemplate: { // asta nu merge
+        title: "{name}", 
         content: `
           <b>Shop Type:</b> {shop}<br>
           <b>Location:</b> {Place_addr}<br>
           <b>Latitude:</b> {latitude}<br>
           <b>Longitude:</b> {longitude}
+          <button id="routeButton">Get Directions</button>
         `
       }
     });
 
     this.view.graphics.add(pointGraphic);
+
   }
 
 
@@ -335,6 +353,10 @@ export class EsriMapComponent implements OnInit, OnDestroy {
   removeRoutes() {
     this.graphicsLayerRoutes.removeAll();
   }
+
+  //routing stuff
+
+  
 
   async calculateRoute(routeUrl: string) {
     const routeParams = new RouteParameters({
