@@ -53,7 +53,7 @@ export class EsriMapComponent implements OnInit, OnDestroy {
   shopsLayer: esri.FeatureLayer;
 
   zoom = 10;
-  center: Array<number> = [44.73682450024377, 34.07817583063242];
+  center: Array<number> = [44.73682450024377, 26.07817583063242];
   basemap = "streets-vector";
   loaded = false;
   directionsElement: any;

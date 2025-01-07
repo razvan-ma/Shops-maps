@@ -1,3 +1,4 @@
+import { HomeComponent } from './pages/home/home.component';
 import { BrowserModule } from "@angular/platform-browser";
 import { NgModule } from "@angular/core";
 import { FormsModule } from '@angular/forms'; 
@@ -21,7 +22,7 @@ import { LoginComponent } from './auth/login/login.component';
 import { RegisterComponent } from './auth/register/register.component';
 
 @NgModule({
-  declarations: [AppComponent, EsriMapComponent, LoginComponent, RegisterComponent],
+  declarations: [AppComponent, EsriMapComponent, LoginComponent, RegisterComponent, HomeComponent],
   imports: [
     BrowserModule,
     AppRoutingModule,

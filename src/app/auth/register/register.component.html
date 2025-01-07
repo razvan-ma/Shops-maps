@@ -1,7 +1,40 @@
-<form (ngSubmit)="register()">
-    <input type="email" [(ngModel)]="email" name="email" placeholder="Email" required />
-    <input type="password" [(ngModel)]="password" name="password" placeholder="Password" required />
+<div class="register-container">
+  <h1>Register</h1>
+  <form (ngSubmit)="register()">
+    <div>
+      <label for="email">Email:</label>
+      <input
+        id="email"
+        type="email"
+        [(ngModel)]="email"
+        name="email"
+        required
+        placeholder="Enter your email"
+      />
+    </div>
+
+    <div>
+      <label for="password">Password:</label>
+      <input
+        id="password"
+        type="password"
+        [(ngModel)]="password"
+        name="password"
+        required
+        placeholder="Enter your password"
+      />
+    </div>
+
     <button type="submit">Register</button>
   </form>
-  <p *ngIf="error">{{ error }}</p>
-  
+
+  <!-- Success Message -->
+  <div *ngIf="success" class="success-message">
+    {{ success }}
+  </div>
+
+  <!-- Error Message -->
+  <div *ngIf="error" class="error-message">
+    {{ error }}
+  </div>
+</div>
