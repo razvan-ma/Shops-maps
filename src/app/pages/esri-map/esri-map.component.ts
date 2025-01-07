@@ -105,18 +105,39 @@ export class EsriMapComponent implements OnInit, OnDestroy {
       outFields: ['*'],
       popupTemplate: {
         title : "{name}",
-        content : `
-          <b>Shop Type:</b> {shop}<br>
-          <b>Location:</b> {addr_street}<br>
-          <b>Schedule:</b> {opening_hours}<br>
-
-          <button id="routeButton"> Get Directions</button>
-          `
+        content : [
+          {
+            type: "text",
+            text: `
+              <b>Shop Type:</b> {shop}<br>
+              <b>Location:</b> {addr_street}<br>
+              <b>Schedule:</b> {opening_hours}<br>
+            `
+          },
+          {
+            type: "custom",
+            creator: () => {
+              const button = document.createElement("button");
+              button.innerText = "Get Directions";
+              button.onclick = () => {
+                const feature = this.view.popup.selectedFeature;
+                if (feature?.geometry) {
+                  const point = feature.geometry as __esri.Point;
+                  console.log("Point coordinates: ", point.x, point.y);
+                  navigator.geolocation.getCurrentPosition((position) => {
+                    const userLat = position.coords.latitude;
+                    const userLng = position.coords.longitude;
+                    this.addRouting(userLat, userLng, point.y, point.x);
+                  });
+                  //this.getRouteToLocation(point.y, point.x);
+                }
+              };
+              return button;
+            }
+          }
+        ]
       }
-      // doar aici ar merge logica de buton 
-      // TODO: Scoate le pe celelalte
     });
-  
     this.map.add(this.shopsLayer);
 
 
@@ -264,31 +285,14 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     this.map.add(this.graphicsLayerRoutes);
   }
 
-  addRouting() {
+  addRouting(startLat: number, startLng: number, endLat: number, endLng: number) {
     const routeUrl = "https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
-  
-    this.view.on("click", (event) => {
-      this.view.hitTest(event).then((elem: esri.HitTestResult) => {
-        if (elem && elem.results && elem.results.length > 0) {
-          // Check if the clicked element is a shop or a point for routing
-          let point: esri.Point = elem.results.find(e => e.layer === this.shopsLayer)?.mapPoint;
-  
-          if (point) {
-            if (this.graphicsLayerUserPoints.graphics.length === 0) {
-              // Add first point for routing
-              this.addPoint(point.latitude, point.longitude);
-            } else if (this.graphicsLayerUserPoints.graphics.length === 1) {
-              // Add second point for routing and calculate the route
-              this.addPoint(point.latitude, point.longitude);
-              this.calculateRoute(routeUrl);
-            } else {
-              // If two points exist, clear them
-              this.removePoints();
-            }
-          }
-        }
-      });
-    });
+    this.removePoints();
+    this.addPoint(startLat, startLng);
+    this.addPoint(endLat, endLng);
+    console.log("Routing from: ", startLat, startLng, " to: ", endLat, endLng);
+    this.calculateRoute(routeUrl);
+    
   }
   addPointToMap(lat: number, lng: number, attributes?: any): void {
     const point = new Point({
