@@ -41,3 +41,18 @@
 .fab:hover {
   background-color: #c0392b;
 }
+.search-container {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 300px;
+  z-index: 1000;
+}
+
+#searchBar {
+  width: 100%;
+  padding: 8px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}

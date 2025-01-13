@@ -52,7 +52,7 @@ export class EsriMapComponent implements OnInit, OnDestroy {
   graphicsLayerRoutes: esri.GraphicsLayer;
   shopsLayer: esri.FeatureLayer;
 
-  zoom = 10;
+  zoom = 12;
   center: Array<number> = [44.73682450024377, 26.07817583063242];
   basemap = "streets-vector";
   loaded = false;
@@ -64,24 +64,26 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     this.initializeMap().then(() => {
       this.loaded = this.view.ready;
       this.mapLoadedEvent.emit(true);
+  
+      // Initialize the search bar
+      this.setupSearchBar();
     });
-    
-    this.task3();
-    this.updateUserPosition(); 
+  
+    this.updateUserPosition();
   }
 
   async initializeMap() {
     try {
       Config.apiKey = "AAPTxy8BH1VEsoebNVZXo8HurDL42Gp3pI8F-jYOI4SS4v1uYO0ON7J9aXaXe-GdxfhRU4_S6bl42unpFpfai6S1owL-szEKDz0Oeb2M7803Y3WKVLJnkRlhJWR6v-ZacsDp2eO5c0jB3JY5r6Rzto410sPGcalC2u2nDQbp8_gdnrNYV6Va8lXyfZQ9C6f8xnBIa9MxDmIaOmYy65CYRMtPt9l1R1M5R1xn7iYRQmyRheg.AT1_vh5PpVUz";
-
+  
       const mapProperties: esri.WebMapProperties = {
         basemap: this.basemap
       };
       this.map = new WebMap(mapProperties);
-
+  
       this.addFeatureLayers();
       this.addGraphicsLayer();
-
+  
       const mapViewProperties = {
         container: this.mapViewEl.nativeElement,
         center: this.center,
@@ -89,23 +91,63 @@ export class EsriMapComponent implements OnInit, OnDestroy {
         map: this.map
       };
       this.view = new MapView(mapViewProperties);
-
+  
       await this.view.when();
       console.log("ArcGIS map loaded");
+  
+      // Watch for changes in the view's extent and zoom level
+      this.view.watch("extent", () => this.queryFeaturesInExtent());
+      this.view.watch("zoom", () => this.queryFeaturesInExtent());
+  
       return this.view;
     } catch (error) {
       console.error("Error loading the map: ", error);
       alert("Error loading the map");
     }
   }
-
+  queryFeaturesInExtent() {
+    const extent = this.view.extent;
+    const zoom = this.view.zoom;
+  
+    const desiredZoomLevel = 12;
+    const maxFeaturesToDisplay = zoom <= desiredZoomLevel ? 100 : 500;
+  
+    if (zoom <= desiredZoomLevel) {
+      const query = this.shopsLayer.createQuery();
+      query.geometry = extent;
+      query.spatialRelationship = "intersects";
+      query.returnGeometry = true;
+      query.outFields = ["*"];
+      query.num = maxFeaturesToDisplay;
+  
+      this.graphicsLayerUserPoints.removeAll(); // Clear existing markers
+  
+      this.shopsLayer.queryFeatures(query).then((result) => {
+        result.features.forEach((feature) => {
+          const marker = new Graphic({
+            geometry: feature.geometry,
+            attributes: feature.attributes,
+            symbol: new SimpleMarkerSymbol({
+              color: [255, 0, 0], // Red
+              outline: { color: [255, 255, 255], width: 1 },
+            }),
+          });
+          this.graphicsLayerUserPoints.add(marker);
+        });
+      }).catch((error) => {
+        console.error("Error querying features: ", error);
+      });
+    } else {
+      this.graphicsLayerUserPoints.removeAll(); // Clear markers at higher zoom levels
+    }
+  }
   addFeatureLayers() {
     this.shopsLayer = new FeatureLayer({
       url: "https://services-eu1.arcgis.com/zci5bUiJ8olAal7N/arcgis/rest/services/OSM_EU_Shops/FeatureServer/0",
       outFields: ['*'],
       popupTemplate: {
-        title : "{name}",
-        content : [
+        title: "{name}",
+        content: [
           {
             type: "text",
             text: `
@@ -129,7 +171,6 @@ export class EsriMapComponent implements OnInit, OnDestroy {
                     const userLng = position.coords.longitude;
                     this.addRouting(userLat, userLng, point.y, point.x);
                   });
-                  //this.getRouteToLocation(point.y, point.x);
                 }
               };
               return button;
@@ -139,10 +180,7 @@ export class EsriMapComponent implements OnInit, OnDestroy {
       }
     });
     this.map.add(this.shopsLayer);
-
-
   }
-
 
   // Find places and add them to the map
   findPlaces(category, pt) {
@@ -190,74 +228,88 @@ export class EsriMapComponent implements OnInit, OnDestroy {
       });
   }
 
-  task3() {
-    const input = document.createElement("input");
-    input.setAttribute("type", "text");
-    input.setAttribute("placeholder", "Search for shop type...");
-    input.setAttribute("class", "esri-widget esri-input");
-    input.setAttribute("style", "width: 175px; font-family: 'Avenir Next W00'; font-size: 1em");
+  setupSearchBar() {
+    const searchBar = document.getElementById("searchBar") as HTMLInputElement;
   
-    const resultsDiv = document.createElement("div");
-    resultsDiv.setAttribute("class", "esri-widget esri-results");
-    resultsDiv.setAttribute("style", "max-height: 150px; overflow-y: auto; background: white; width: 175px; border: 1px solid #ccc;");
+    let debounceTimeout: any;
+    const debounce = (func: Function, delay: number) => {
+      clearTimeout(debounceTimeout);
+      debounceTimeout = setTimeout(func, delay);
+    };
   
-    this.view.ui.add(input, "bottom-left");
-    this.view.ui.add(resultsDiv, "bottom-left");
+    searchBar.addEventListener("input", () => {
+      const query = searchBar.value.trim().toLowerCase();
+      debounce(() => this.filterMapByCategory(query), 300);
+    });
+  }
   
-    input.addEventListener("input", (event) => {
-      const query = (event.target as HTMLInputElement).value.trim().toLowerCase();
+  filterMapByCategory(query: string) {
+    if (!query) {
+      this.graphicsLayerUserPoints.removeAll(); // Clear markers if search bar is empty
+      return;
+    }
   
-      if (query.length > 2) {
-        this.shopsLayer.queryFeatures({
-          where: `LOWER(shop) LIKE '%${query}%'`,
-          outFields: ["shop"],
-          returnDistinctValues: true
-        }).then((result) => {
-          resultsDiv.innerHTML = ""; // Clear previous results
+    const searchQuery = this.shopsLayer.createQuery();
+    searchQuery.where = `LOWER(shop) LIKE '%${query}%'`; // Replace 'shop' with your category field
+    searchQuery.returnGeometry = true;
+    searchQuery.outFields = ["name", "shop", "addr_street"];
   
-          if (result.features.length === 0) {
-            resultsDiv.innerHTML = "<div style='padding: 5px;'>No results found</div>";
-          } else {
-            result.features.forEach((feature) => {
-              const type = feature.attributes.shop;
+    this.shopsLayer.queryFeatures(searchQuery).then((result) => {
+      this.graphicsLayerUserPoints.removeAll(); // Clear existing markers
   
-              const resultItem = document.createElement("div");
-              resultItem.setAttribute("style", "padding: 5px; cursor: pointer;");
-              resultItem.textContent = type;
+      result.features.forEach((feature) => {
+        const { name, shop } = feature.attributes;
+        const { x, y } = feature.geometry as __esri.Point;
   
-              resultItem.addEventListener("click", () => {
-                input.value = type;
-                resultsDiv.innerHTML = ""; // Clear results on selection
-                this.filterShopsByType(type); // Apply filter to the map
-              });
-  
-              resultsDiv.appendChild(resultItem);
-            });
-          }
+        // Add points to the map for matching results
+        this.addPointToMap(y, x, {
+          name: name || "Unknown",
+          type: shop || "N/A",
         });
-      } else {
-        resultsDiv.innerHTML = ""; // Clear results if query is too short
+      });
+  
+      if (result.features.length === 0) {
+        console.log("No matching results found");
       }
     });
   }
-  filterShopsByType(shopType: string): void {
-    // Apply a definition query to the FeatureLayer
-    this.shopsLayer.definitionExpression = `shop = '${shopType}'`;
-    console.log(`Filtering shops by type: ${shopType}`);
+  
+  addPointToMap(lat: number, lng: number, attributes?: any): void {
+    const point = new Point({
+      longitude: lng,
+      latitude: lat,
+    });
+  
+    const pointGraphic = new Graphic({
+      geometry: point,
+      symbol: new SimpleMarkerSymbol({
+        color: [255, 0, 0], // Red color
+        size: 8,
+        outline: {
+          color: [255, 255, 255],
+          width: 2,
+        },
+      }),
+      attributes: attributes || {},
+      popupTemplate: {
+        title: "{name}",
+        content: `
+          <b>Type:</b> {type}<br>
+          <b>Latitude:</b> ${lat}<br>
+          <b>Longitude:</b> ${lng}
+        `,
+      },
+    });
+  
+    this.graphicsLayerUserPoints.add(pointGraphic);
   }
-  resetShopFilter(): void {
-    // Clear the definition query to show all shops
-    this.shopsLayer.definitionExpression = null;
-    console.log("Shop filter reset");
-  }
-
 
   updateUserPosition(): void {
     if (navigator.geolocation) {
-      navigator.geolocation.watchPosition((position) => {
+      navigator.geolocation.getCurrentPosition((position) => {
         const userLat = position.coords.latitude;
         const userLng = position.coords.longitude;
-
+  
         this.view.center = new Point({ longitude: userLng, latitude: userLat });
         this.saveUserPositionToFirebase(userLat, userLng);
       }, (error) => {
@@ -294,38 +346,7 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     this.calculateRoute(routeUrl);
     
   }
-  addPointToMap(lat: number, lng: number, attributes?: any): void {
-    const point = new Point({
-      longitude: lng,
-      latitude: lat
-    });
 
-    const pointGraphic = new Graphic({
-      geometry: point,
-      symbol: new SimpleMarkerSymbol({
-        color: [255, 0, 0],  // Red color
-        size: 8,
-        outline: {
-          color: [255, 255, 255],
-          width: 2
-        }
-      }),
-      attributes: attributes || {},
-      popupTemplate: { // asta nu merge
-        title: "{name}", 
-        content: `
-          <b>Shop Type:</b> {shop}<br>
-          <b>Location:</b> {Place_addr}<br>
-          <b>Latitude:</b> {latitude}<br>
-          <b>Longitude:</b> {longitude}
-          <button id="routeButton">Get Directions</button>
-        `
-      }
-    });
-
-    this.view.graphics.add(pointGraphic);
-
-  }
 
 
   addPoint(lat: number, lng: number) {
@@ -358,7 +379,6 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     this.graphicsLayerRoutes.removeAll();
   }
 
-  //routing stuff
 
   
 
