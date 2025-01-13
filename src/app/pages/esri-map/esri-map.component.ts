@@ -165,11 +165,11 @@ export class EsriMapComponent implements OnInit, OnDestroy {
                 const feature = this.view.popup.selectedFeature;
                 if (feature?.geometry) {
                   const point = feature.geometry as __esri.Point;
-                  console.log("Point coordinates: ", point.x, point.y);
+                  console.log("Point coordinates: ", point.latitude, point.longitude);
                   navigator.geolocation.getCurrentPosition((position) => {
                     const userLat = position.coords.latitude;
                     const userLng = position.coords.longitude;
-                    this.addRouting(userLat, userLng, point.y, point.x);
+                    this.addRouting(userLat, userLng, point.latitude, point.longitude);
                   });
                 }
               };
