@@ -25,6 +25,14 @@
       />
     </div>
 
+    <div>
+      <label for="userType">Account Type:</label>
+      <select id="userType" [(ngModel)]="userType" name="userType" required>
+        <option value="customer">Customer</option>
+        <option value="shopOwner">Shop Owner</option>
+      </select>
+    </div>
+
     <button type="submit">Register</button>
   </form>
 
