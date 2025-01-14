@@ -37,6 +37,8 @@ export class LoginComponent {
             // Redirect based on user type
             if (user.userType === 'customer') {
               this.router.navigate(['/home']);
+              this.router.navigate(['/bookmarks']);
+
             } else if (user.userType === 'shopOwner') {
               this.router.navigate(['/shop-dashboard']); // Replace with the actual shop owner dashboard route
             }

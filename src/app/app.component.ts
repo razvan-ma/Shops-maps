@@ -20,6 +20,9 @@ export class AppComponent {
   }, {
     name: 'Map',
     link: '/map'
+  }, {
+    name: 'Bookmarks',
+    link: '/bookmarks'
   }];
 
   activeTab = this.tabs[0].link;

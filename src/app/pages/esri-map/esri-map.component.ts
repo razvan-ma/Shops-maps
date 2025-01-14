@@ -18,11 +18,11 @@ import MapView from '@arcgis/core/views/MapView';
 import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer";
 import Graphic from '@arcgis/core/Graphic';
 import Point from '@arcgis/core/geometry/Point';
-import Polyline from '@arcgis/core/geometry/Polyline';
-import Polygon from '@arcgis/core/geometry/Polygon';
+// import Polyline from '@arcgis/core/geometry/Polyline';
+// import Polygon from '@arcgis/core/geometry/Polygon';
 import SimpleMarkerSymbol from '@arcgis/core/symbols/SimpleMarkerSymbol';
-import UniqueValueRenderer from '@arcgis/core/renderers/UniqueValueRenderer';
-import PictureMarkerSymbol from "@arcgis/core/symbols/PictureMarkerSymbol";
+// import UniqueValueRenderer from '@arcgis/core/renderers/UniqueValueRenderer';
+// import PictureMarkerSymbol from "@arcgis/core/symbols/PictureMarkerSymbol";
 
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
 
@@ -30,10 +30,15 @@ import FeatureSet from '@arcgis/core/rest/support/FeatureSet';
 import RouteParameters from '@arcgis/core/rest/support/RouteParameters';
 import * as route from "@arcgis/core/rest/route.js";
 import * as locator from "@arcgis/core/rest/locator";
-import * as reactiveUtils from "@arcgis/core/core/reactiveUtils";
+// import * as reactiveUtils from "@arcgis/core/core/reactiveUtils";
 
 import { AngularFireDatabase } from '@angular/fire/compat/database';
-import { environment } from '../../../environments/environment';
+import { AngularFireAuth } from '@angular/fire/compat/auth';
+// import { environment } from '../../../environments/environment';
+
+import { MapService } from '../../services/map.service';
+// import { Subscription } from 'rxjs';
+
 
 @Component({
   selector: "app-esri-map",
@@ -42,7 +47,7 @@ import { environment } from '../../../environments/environment';
 })
 export class EsriMapComponent implements OnInit, OnDestroy {
   @Output() mapLoadedEvent = new EventEmitter<boolean>();
-
+  
   @ViewChild("mapViewNode", { static: true }) private mapViewEl: ElementRef;
 
   map: esri.Map;
@@ -57,8 +62,9 @@ export class EsriMapComponent implements OnInit, OnDestroy {
   basemap = "streets-vector";
   loaded = false;
   directionsElement: any;
+  
 
-  constructor(private db: AngularFireDatabase) { }
+  constructor(private db: AngularFireDatabase, private afAuth: AngularFireAuth, private mapService: MapService) { }
 
   ngOnInit() {
     this.initializeMap().then(() => {
@@ -70,6 +76,9 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     });
   
     this.updateUserPosition();
+    this.mapService.setMapView(this.view);
+    console.log("Map view set in map service {}", this.view);
+    
   }
 
   async initializeMap() {
@@ -175,6 +184,20 @@ export class EsriMapComponent implements OnInit, OnDestroy {
               };
               return button;
             }
+          },
+          {
+            type: "custom",
+            creator: () => {
+              const button = document.createElement("button");
+              button.innerText = "Bookmark";
+              button.onclick = () => {
+                const feature = this.view.popup.selectedFeature;
+                if (feature) {
+                  this.addBookmark(feature);
+                }
+              };
+              return button;
+            }
           }
         ]
       }
@@ -183,9 +206,9 @@ export class EsriMapComponent implements OnInit, OnDestroy {
   }
 
   // Find places and add them to the map
-  findPlaces(category, pt) {
+  findPlaces(category: string, pt: esri.Point) {
     const locatorUrl = "http://geocode-api.arcgis.com/arcgis/rest/services/World/GeocodeServer";
-    const simpleMarkerSymbol = {
+    const simpleMarkerSymbol: esri.SimpleMarkerSymbolProperties = {
       type: "simple-marker",
       color: [255, 0, 0],  // Red
       outline: {
@@ -228,6 +251,17 @@ export class EsriMapComponent implements OnInit, OnDestroy {
       });
   }
 
+  focusBookmark(bookmark: any): void {
+    const geometry = bookmark.geometry; // Geometria salvată în Firebase
+    const point = new Point(geometry);
+  
+    this.view.goTo({
+      target: point,
+      zoom: 15,
+    });
+  }
+
+  
   setupSearchBar() {
     const searchBar = document.getElementById("searchBar") as HTMLInputElement;
   
@@ -340,6 +374,8 @@ export class EsriMapComponent implements OnInit, OnDestroy {
   addRouting(startLat: number, startLng: number, endLat: number, endLng: number) {
     const routeUrl = "https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World";
     this.removePoints();
+    this.removeRoutes();
+    this.clearRouter();
     this.addPoint(startLat, startLng);
     this.addPoint(endLat, endLng);
     console.log("Routing from: ", startLat, startLng, " to: ", endLat, endLng);
@@ -445,4 +481,55 @@ export class EsriMapComponent implements OnInit, OnDestroy {
       this.view.container = null;
     }
   }
+  addBookmark(feature: __esri.Graphic): void {
+    // Obține ID-ul utilizatorului autentificat
+    this.afAuth.currentUser.then((user) => {
+      if (user && user.uid) {
+        const userId = user.uid;
+        console.log('User authenticated:', user.uid);  // Verifică dacă user-ul este autentificat
+        // Adaugă bookmark-ul în baza de date Firebase
+        if (feature.geometry && feature.geometry.type === 'point') {
+          const point = feature.geometry as __esri.Point; // Cast la tipul corect
+        this.db.list(`bookmarks/${userId}`).push({
+          name: feature.attributes?.name ?? 'No name', // Numele locului
+          shop: feature.attributes?.shop ?? 'Unknown', // Magazinul sau locația
+          latitude: point.latitude,         // Latitudinea
+          longitude: point.longitude,       // Longitudinea , le iau pentru afisarea pe harta
+        });
+        console.log('Bookmark added:', feature.attributes?.name);
+        console.log('bookmarks: ', this.db.list(`bookmarks/${userId}`));
+
+        // Notifică utilizatorul că bookmark-ul a fost adăugat
+        alert('Bookmark added!');
+      } else {
+        alert('You must be logged in to add bookmarks.');
+      }
+    }
+    }).catch((error) => {
+      console.error('Error fetching user:', error);
+      alert('An error occurred while adding the bookmark.');
+    });
+  }
+
+  zoomToLocation(latitude: number, longitude: number): void {
+    console.log(`Zooming to location: ${latitude}, ${longitude}`);
+    if (this.view) {
+      const point = new Point({
+        latitude: latitude,
+        longitude: longitude
+      });
+      this.view.goTo({
+        target: point,
+        zoom: 15
+      }).then(() => {
+        console.log(`Map zoomed to: ${latitude}, ${longitude}`);
+      }).catch((error) => {
+        console.error('Error zooming to location:', error);
+      });
+    } else {
+      console.error('MapView is not initialized.');
+    }
+  }
+  
+
 }

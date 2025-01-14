@@ -1,0 +1,8 @@
+<div class="bookmarks-container">
+    <div class="bookmark-item" *ngFor="let bookmark of bookmarks; let i = index">
+      <span>{{ bookmark.name }}</span>
+      <button class="bookmark-button" (click)="goToLocation(bookmark.latitude, bookmark.longitude)">Go to Location</button>
+      <button class="bookmark-button" (click)="deleteBookmark(bookmark.key)">Delete</button>
+    </div>
+</div>
+  

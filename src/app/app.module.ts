@@ -20,9 +20,10 @@ import { MatListModule } from '@angular/material/list';
 import { FlexLayoutModule } from '@angular/flex-layout';
 import { LoginComponent } from './auth/login/login.component';
 import { RegisterComponent } from './auth/register/register.component';
+import { BookmarksComponent } from './pages/bookmarks/bookmarks.component';
 
 @NgModule({
-  declarations: [AppComponent, EsriMapComponent, LoginComponent, RegisterComponent, HomeComponent],
+  declarations: [AppComponent, EsriMapComponent, LoginComponent, RegisterComponent, HomeComponent,  BookmarksComponent],
   imports: [
     BrowserModule,
     AppRoutingModule,
@@ -36,6 +37,7 @@ import { RegisterComponent } from './auth/register/register.component';
     AngularFireAuthModule,
     AngularFireDatabaseModule],
   providers: [],
+  exports: [EsriMapComponent],
   bootstrap: [AppComponent]
 })
 export class AppModule { }
