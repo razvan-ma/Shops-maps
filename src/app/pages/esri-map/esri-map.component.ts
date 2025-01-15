@@ -57,12 +57,12 @@ export class EsriMapComponent implements OnInit, OnDestroy {
   graphicsLayerRoutes: esri.GraphicsLayer;
   shopsLayer: esri.FeatureLayer;
 
-  zoom = 12;
+  zoom = 16;
   center: Array<number> = [44.73682450024377, 26.07817583063242];
   basemap = "streets-vector";
   loaded = false;
   directionsElement: any;
-  
+  public graphicsLayerFilterPoints: esri.GraphicsLayer;
 
   constructor(private db: AngularFireDatabase, private afAuth: AngularFireAuth, private mapService: MapService) { }
 
@@ -263,49 +263,62 @@ export class EsriMapComponent implements OnInit, OnDestroy {
 
   
   setupSearchBar() {
-    const searchBar = document.getElementById("searchBar") as HTMLInputElement;
-  
-    let debounceTimeout: any;
-    const debounce = (func: Function, delay: number) => {
-      clearTimeout(debounceTimeout);
-      debounceTimeout = setTimeout(func, delay);
-    };
-  
-    searchBar.addEventListener("input", () => {
-      const query = searchBar.value.trim().toLowerCase();
-      debounce(() => this.filterMapByCategory(query), 300);
+    const input = document.createElement("input");
+    input.setAttribute("type", "text");
+    input.setAttribute("placeholder", "Search for places (e.g., Bakery)");
+    input.setAttribute("class", "esri-widget esri-input");
+    input.setAttribute("style", "width: 300px; padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px;");
+
+    const resultsDiv = document.createElement("div");
+    resultsDiv.setAttribute("class", "esri-widget esri-results");
+    resultsDiv.setAttribute("style", "max-height: 150px; overflow-y: auto; background: white; width: 300px; border: 1px solid #ccc;");
+
+    this.view.ui.add(input, "top-right");
+    this.view.ui.add(resultsDiv, "top-right");
+
+    input.addEventListener("input", (event) => {
+        const query = (event.target as HTMLInputElement).value.trim().toLowerCase();
+
+        if (query.length > 2) {
+            this.shopsLayer.queryFeatures({
+                where: `LOWER(shop) LIKE '%${query}%'`,
+                outFields: ["shop"],
+                returnDistinctValues: true
+            }).then((result) => {
+                resultsDiv.innerHTML = ""; // Clear previous results
+
+                if (result.features.length === 0) {
+                    resultsDiv.innerHTML = "<div style='padding: 5px;'>No results found</div>";
+                } else {
+                    result.features.forEach((feature) => {
+                        const type = feature.attributes.shop;
+
+                        const resultItem = document.createElement("div");
+                        resultItem.setAttribute("style", "padding: 5px; cursor: pointer;");
+                        resultItem.textContent = type;
+
+                        resultItem.addEventListener("click", () => {
+                            input.value = type;
+                            resultsDiv.innerHTML = ""; // Clear results on selection
+                            this.filterMapByCategory(type); // Apply filter to the map
+                        });
+
+                        resultsDiv.appendChild(resultItem);
+                    });
+                }
+            });
+        } else {
+            resultsDiv.innerHTML = ""; // Clear results if query is too short
+        }
     });
   }
   
   filterMapByCategory(query: string) {
+    this.graphicsLayerFilterPoints.removeAll();
     if (!query) {
-      this.graphicsLayerUserPoints.removeAll(); // Clear markers if search bar is empty
       return;
     }
-  
-    const searchQuery = this.shopsLayer.createQuery();
-    searchQuery.where = `LOWER(shop) LIKE '%${query}%'`; // Replace 'shop' with your category field
-    searchQuery.returnGeometry = true;
-    searchQuery.outFields = ["name", "shop", "addr_street"];
-  
-    this.shopsLayer.queryFeatures(searchQuery).then((result) => {
-      this.graphicsLayerUserPoints.removeAll(); // Clear existing markers
-  
-      result.features.forEach((feature) => {
-        const { name, shop } = feature.attributes;
-        const { x, y } = feature.geometry as __esri.Point;
-  
-        // Add points to the map for matching results
-        this.addPointToMap(y, x, {
-          name: name || "Unknown",
-          type: shop || "N/A",
-        });
-      });
-  
-      if (result.features.length === 0) {
-        console.log("No matching results found");
-      }
-    });
+    this.shopsLayer.definitionExpression = `shop = '${query}'`;
   }
   
   addPointToMap(lat: number, lng: number, attributes?: any): void {
@@ -367,6 +380,8 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     this.map.add(this.graphicsLayer);
     this.graphicsLayerUserPoints = new GraphicsLayer();
     this.map.add(this.graphicsLayerUserPoints);
+    this.graphicsLayerFilterPoints = new GraphicsLayer();
+    this.map.add(this.graphicsLayerFilterPoints);
     this.graphicsLayerRoutes = new GraphicsLayer();
     this.map.add(this.graphicsLayerRoutes);
   }

@@ -30,6 +30,7 @@ export class BookmarksComponent {
         // Încarcă bookmark-urile după ce userId este setat
         this.loadBookmarks();
       } else {
+        alert('No user is logged in. Cannot load bookmarks.');
         console.error('No user is logged in. Cannot load bookmarks.');
       }
     });

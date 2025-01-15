@@ -2,3 +2,16 @@
     font-family: Arial, Helvetica, sans-serif;
     text-align: center;
 }
+
+nav.mat-tab-nav-bar {
+    background-color: #538786; // Change this to your desired color
+    color: white;
+}
+
+a.mat-tab-link {
+    color: white;
+}
+
+a.mat-tab-link.mat-tab-label-active {
+    color: #ffeb3b; // Change this to your desired active tab color
+}

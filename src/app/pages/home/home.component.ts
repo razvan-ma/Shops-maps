@@ -6,6 +6,7 @@ import { Component } from "@angular/core";
     styleUrls: ['./home.component.scss']
 })
 export class HomeComponent {
+    backgroundImageUrl: string = 'assets/background.png';
 
     constructor() {
 
