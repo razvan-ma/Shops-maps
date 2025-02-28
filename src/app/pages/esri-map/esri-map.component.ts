@@ -58,13 +58,44 @@ export class EsriMapComponent implements OnInit, OnDestroy {
   shopsLayer: esri.FeatureLayer;
 
   zoom = 16;
-  center: Array<number> = [44.73682450024377, 26.07817583063242];
+  public center: Array<number> = [44.73682450024377, 26.07817583063242];
   basemap = "streets-vector";
   loaded = false;
   directionsElement: any;
   public graphicsLayerFilterPoints: esri.GraphicsLayer;
 
   constructor(private db: AngularFireDatabase, private afAuth: AngularFireAuth, private mapService: MapService) { }
+
+  
+  zoomToLocation(latitude: number, longitude: number): void {
+    console.log(`Zooming to location: ${latitude}, ${longitude}`);
+    if (this.view) {
+        const point = new Point({
+            latitude: latitude,
+            longitude: longitude
+        });
+        this.view.goTo({
+            target: point,
+            zoom: 15
+        }).then(() => {
+            console.log(`Map zoomed to: ${latitude}, ${longitude}`);
+            this.view.center = point; // Set the map center to the new location
+        }).catch((error) => {
+            console.error('Error zooming to location:', error);
+        });
+    } else {
+        console.error('MapView is not initialized.');
+        this.initializeMap([longitude, latitude]).then(() => {
+            this.zoomToLocation(latitude, longitude);
+        });
+    }
+}
+  setCenter(latitude: number, longitude: number): void {
+    this.center = [longitude, latitude];
+    if (this.view) {
+        this.zoomToLocation(latitude, longitude);
+    }
+}
 
   ngOnInit() {
     this.initializeMap().then(() => {
@@ -74,14 +105,13 @@ export class EsriMapComponent implements OnInit, OnDestroy {
       // Initialize the search bar
       this.setupSearchBar();
     });
-  
     this.updateUserPosition();
     this.mapService.setMapView(this.view);
     console.log("Map view set in map service {}", this.view);
     
   }
 
-  async initializeMap() {
+  async initializeMap(center?: [number, number]) {
     try {
       Config.apiKey = "AAPTxy8BH1VEsoebNVZXo8HurDL42Gp3pI8F-jYOI4SS4v1uYO0ON7J9aXaXe-GdxfhRU4_S6bl42unpFpfai6S1owL-szEKDz0Oeb2M7803Y3WKVLJnkRlhJWR6v-ZacsDp2eO5c0jB3JY5r6Rzto410sPGcalC2u2nDQbp8_gdnrNYV6Va8lXyfZQ9C6f8xnBIa9MxDmIaOmYy65CYRMtPt9l1R1M5R1xn7iYRQmyRheg.AT1_vh5PpVUz";
   
@@ -95,7 +125,7 @@ export class EsriMapComponent implements OnInit, OnDestroy {
   
       const mapViewProperties = {
         container: this.mapViewEl.nativeElement,
-        center: this.center,
+        center: center || this.center,
         zoom: this.zoom,
         map: this.map
       };
@@ -491,11 +521,7 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     }
   }
   
-  ngOnDestroy() {
-    if (this.view) {
-      this.view.container = null;
-    }
-  }
+
   addBookmark(feature: __esri.Graphic): void {
     // Obține ID-ul utilizatorului autentificat
     this.afAuth.currentUser.then((user) => {
@@ -526,25 +552,10 @@ export class EsriMapComponent implements OnInit, OnDestroy {
     });
   }
 
-  zoomToLocation(latitude: number, longitude: number): void {
-    console.log(`Zooming to location: ${latitude}, ${longitude}`);
+  ngOnDestroy() {
     if (this.view) {
-      const point = new Point({
-        latitude: latitude,
-        longitude: longitude
-      });
-      this.view.goTo({
-        target: point,
-        zoom: 15
-      }).then(() => {
-        console.log(`Map zoomed to: ${latitude}, ${longitude}`);
-      }).catch((error) => {
-        console.error('Error zooming to location:', error);
-      });
-    } else {
-      console.error('MapView is not initialized.');
+      this.view.container = null;
     }
   }
-  
 
 }
