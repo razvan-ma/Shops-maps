@@ -6,6 +6,7 @@ _________________
 The map uses **ArcGis API** in order to:
 - determine the current position of the user
 - display nearby shops via a Feature Layer
+- use a search function to sort shops based on their type (eg. supermarket, carpentry, bakery)
 - display travel routes from the current position to the selected location
 
 Additionally, user data is stored into **Firebase** for convenience. A logged in user can bookmark locations and then access them from a special tab.
