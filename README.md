@@ -1,5 +1,5 @@
 # Shops map
-A website that diplays shops near you, using **Angular**. Users can make an account and store bookmark data, and also get routing information in order to reach the destination from their current location.
+A website that diplays shops near you, made using **Angular**. Users can make an account and store bookmark data, and also get routing information in order to reach the destination from their current location.
 _________________
 ### Core functionalities
 
